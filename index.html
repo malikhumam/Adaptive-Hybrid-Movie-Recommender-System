@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hybrid Movie Recommender</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--g900:#0B3D2E;--g800:#166534;--g700:#15803D;--g600:#16A34A;--g100:#E8F5EC;--g50:#F6FBF7;
+      --ink:#13241B;--mut:#64766A;--line:#DCE9E0;--sb:240px}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--g50);color:var(--ink)}
+.layout{display:flex;min-height:100vh}
+
+.sidebar{width:var(--sb);flex:none;background:var(--g900);color:#fff;padding:22px 18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar h1{font-size:1.08rem;margin:0;font-weight:700;letter-spacing:.01em}
+.sidebar .sub{font-size:.72rem;opacity:.65;margin:4px 0 22px;line-height:1.4}
+.sidebar label{display:block;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin:18px 0 7px}
+.sidebar label:first-of-type{margin-top:0}
+.sidebar input[type=number]{width:100%;padding:9px 10px;border:0;border-radius:8px;font-size:.95rem;background:#ffffffee}
+.sidebar input[type=range]{width:100%;accent-color:#4ADE80}
+.pickrow{display:flex;gap:6px;margin-top:2px}
+.pickbtn{flex:1;background:#ffffff14;border:1px solid #ffffff28;color:#fff;border-radius:7px;padding:7px 0;font-size:.74rem;cursor:pointer;transition:background .15s}
+.pickbtn:hover{background:#ffffff2a}
+.sidetag{display:inline-block;background:#ffffff16;border-radius:20px;padding:4px 12px;font-size:.72rem;margin-top:16px;letter-spacing:.02em}
+.divider{height:1px;background:#ffffff1c;margin:20px 0}
+.sidefoot{font-size:.68rem;opacity:.5;margin-top:26px;line-height:1.5}
+
+.main{flex:1;padding:26px 32px;max-width:1180px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.tab{background:none;border:0;padding:9px 18px;font-weight:600;font-size:.9rem;color:var(--mut);cursor:pointer;
+     border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab.active{color:var(--g800);border-bottom-color:var(--g700)}
+.panel{display:none}.panel.active{display:block}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-size:1.5rem;color:var(--g800);font-weight:700}
+.stat span{font-size:.74rem;color:var(--mut)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.grid2 .box,.grid3 .box{margin-bottom:0}
+.box h4{margin:0 0 10px;color:var(--g800);font-size:.95rem;font-weight:700}
+.chartbox{position:relative;height:260px}
+
+.colh{margin:0 0 10px;padding:8px 14px;border-radius:10px;color:#fff;font-size:.92rem;font-weight:700}
+.colh.cf{background:var(--g700)}.colh.cb{background:#3FB876;color:#07301f}.colh.hybrid{background:var(--g900)}
+.rec{display:flex;gap:10px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--g700);
+     border-radius:10px;padding:9px 12px;margin-bottom:8px}
+.rec.cb{border-left-color:#3FB876}.rec.hybrid{border-left-color:var(--g900)}
+.rk{font-weight:700;color:var(--g700);min-width:24px;font-size:.88rem}
+.tt{font-weight:600;display:flex;justify-content:space-between;gap:8px;font-size:.88rem}
+.sc{color:var(--g800);white-space:nowrap;font-weight:700}
+.rs{font-size:.76rem;color:var(--mut);margin-top:3px;line-height:1.35}
+
+table{width:100%;border-collapse:collapse}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:.86rem}
+th{background:var(--g100);color:var(--g900);font-weight:700}
+td.best{font-weight:700;color:var(--g700);background:var(--g50)}
+.dotc{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}
+.note{font-size:.78rem;color:var(--mut)}
+.insight{background:var(--g100);border-left:4px solid var(--g700);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:.88rem;line-height:1.5}
+ul.tr{margin:0;padding-left:18px;font-size:.88rem;color:var(--ink)}ul.tr li{margin-bottom:5px}
+@media(max-width:900px){.layout{flex-direction:column}.sidebar{width:100%;height:auto;position:static}
+  .grid2,.grid3,.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>Hybrid Movie Recommender</h1>
+    <div class="sub">Item-Based CF · Neural Network · Adaptive Hybrid<br>MovieLens 1M</div>
+
+    <label>User ID</label>
+    <input type="number" id="uid" min="1" value="196">
+    <div class="pickrow">
+      <button class="pickbtn" data-pick="light">Light</button>
+      <button class="pickbtn" data-pick="medium">Medium</button>
+      <button class="pickbtn" data-pick="heavy">Heavy</button>
+    </div>
+    <span class="sidetag" id="userTag">–</span>
+
+    <div class="divider"></div>
+
+    <label>Recommendations · <span id="nv">10</span></label>
+    <input type="range" id="nrec" min="5" max="20" value="10">
+
+    <label>Hybrid τ · <span id="tauv">20</span></label>
+    <input type="range" id="tau" min="1" max="200" value="20">
+
+    <div class="sidefoot" id="metaFoot"></div>
+  </aside>
+
+  <main class="main">
+    <nav class="tabs">
+      <button class="tab active" data-tab="rec">Recommendations</button>
+      <button class="tab" data-tab="results">Results</button>
+      <button class="tab" data-tab="dataset">Dataset</button>
+    </nav>
+
+    <div id="p-rec" class="panel active">
+      <div class="stats">
+        <div class="stat"><b id="stN">–</b><span>Ratings by this user</span></div>
+        <div class="stat"><b id="stMu">–</b><span>Average rating</span></div>
+        <div class="stat"><b id="stA">–</b><span>α (neural weight)</span></div>
+        <div class="stat"><b id="stC">–</b><span>1 − α (CF weight)</span></div>
+      </div>
+      <div class="grid2">
+        <div class="box"><h4>Taste profile</h4>
+          <div class="chartbox"><canvas id="cProfile"></canvas></div></div>
+        <div class="box"><h4>Top-rated movies</h4><ul class="tr" id="topRated"></ul></div>
+      </div>
+      <div class="grid3">
+        <div><h3 class="colh cf">Item-Based CF</h3><div id="col-cf"></div></div>
+        <div><h3 class="colh cb">Neural Network</h3><div id="col-cb"></div></div>
+        <div><h3 class="colh hybrid">Adaptive Hybrid</h3><div id="col-hybrid"></div></div>
+      </div>
+      <p class="note" id="overlap" style="margin-top:12px"></p>
+    </div>
+
+    <div id="p-results" class="panel">
+      <div id="resEmpty" class="note">No results found. Run <code>python experiments.py</code> in the terminal, then reload this page.</div>
+      <div id="resBody" style="display:none">
+        <div class="insight" id="resInfo"></div>
+        <div class="box"><h4>Overall results</h4><div id="resTable"></div></div>
+        <div class="grid2">
+          <div class="box"><h4>Rating-prediction error</h4><div class="chartbox"><canvas id="cErr"></canvas></div></div>
+          <div class="box"><h4>Top-10 ranking quality</h4><div class="chartbox"><canvas id="cRank"></canvas></div></div>
+        </div>
+        <div class="grid2">
+          <div class="box"><h4>RMSE by user activity</h4><div class="chartbox"><canvas id="cActR"></canvas></div></div>
+          <div class="box"><h4>Precision@10 by user activity</h4><div class="chartbox"><canvas id="cActP"></canvas></div></div>
+        </div>
+        <div class="grid2">
+          <div class="box"><h4>Cold-start simulation</h4><div class="chartbox"><canvas id="cCold"></canvas></div></div>
+          <div class="box"><h4>Tuning τ</h4><div class="chartbox"><canvas id="cTau"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="p-dataset" class="panel">
+      <div class="stats" id="dsStats"></div>
+      <div class="grid2">
+        <div class="box"><h4>Rating distribution</h4><div class="chartbox"><canvas id="cRatings"></canvas></div></div>
+        <div class="box"><h4>Ratings per user</h4><div class="chartbox"><canvas id="cAct"></canvas></div></div>
+      </div>
+      <div class="box"><h4>Movies per genre / decade</h4><div class="chartbox" style="height:400px"><canvas id="cFeat"></canvas></div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const deb = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const COLORS = {'User mean':'#C9D6CD','Item-CF':'#15803D','Neural Network':'#3FB876','Hybrid':'#0B3D2E'};
+Chart.defaults.color = '#13241B';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+Chart.defaults.borderColor = '#DCE9E0';
+
+const charts = {};
+function mk(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) { let d = ''; try { d = (await r.json()).detail; } catch (e) {} throw new Error(d || r.statusText); }
+  return r.json();
+}
+const active = () => document.querySelector('.tab.active').dataset.tab;
+let maxUid = 99999, lastRec = null, reqId = 0;
+
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'p-' + b.dataset.tab));
+  if (b.dataset.tab === 'results') loadResults();
+  if (b.dataset.tab === 'dataset') loadDataset();
+});
+
+async function loadRec() {
+  const uid = +$('#uid').value;
+  if (!(uid >= 1 && uid <= maxUid)) return;
+  const my = ++reqId;
+  const d = await api(`/api/recommend/${uid}?n=${$('#nrec').value}&tau=${$('#tau').value}`);
+  if (my === reqId) renderRec(d);
+}
+const loadRecD = deb(loadRec);
+$('#uid').oninput = loadRecD;
+$('#nrec').oninput = () => { $('#nv').textContent = $('#nrec').value; loadRecD(); };
+$('#tau').oninput = () => { $('#tauv').textContent = $('#tau').value; loadRecD(); };
+document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => {
+  const d = await api('/api/pick-user?kind=' + b.dataset.pick);
+  $('#uid').value = d.uid; loadRec();
+});
+
+function card(x, k) {
+  return `<div class="rec ${k}"><div class="rk">#${x.rank}</div><div style="flex:1">
+    <div class="tt"><span>${esc(x.title)}</span><span class="sc">★ ${x.score.toFixed(2)}</span></div>
+    <div class="rs">${fmt(x.reason)}</div></div></div>`;
+}
+function renderRec(d) {
+  lastRec = d;
+  $('#stN').textContent = d.n_ratings;
+  $('#stMu').textContent = d.mean.toFixed(2);
+  $('#stA').textContent = d.alpha.toFixed(2);
+  $('#stC').textContent = (1 - d.alpha).toFixed(2);
+  $('#userTag').textContent = (d.n_ratings <= 50 ? 'Light user' : d.n_ratings <= 200 ? 'Medium user' : 'Heavy user');
+  mk('cProfile', {type: 'bar',
+    data: {labels: d.profile.map(x => x.feature),
+           datasets: [{data: d.profile.map(x => x.value),
+                       backgroundColor: d.profile.map(x => x.value > 0 ? '#15803D' : '#D97706'), borderRadius: 4}]},
+    options: {indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}}});
+  $('#topRated').innerHTML = d.top_rated.map(x => `<li>${esc(x.title)} — ${x.rating}★</li>`).join('');
+  ['cf', 'cb', 'hybrid'].forEach(k => $('#col-' + k).innerHTML = d.recs[k].map(x => card(x, k)).join(''));
+  const S = k => new Set(d.recs[k].map(x => x.id));
+  const inter = (a, b) => [...a].filter(x => b.has(x)).length;
+  $('#overlap').textContent = `Overlap of top-${d.n}: CF ∩ Neural = ${inter(S('cf'), S('cb'))}  ·  CF ∩ Hybrid = ${inter(S('cf'), S('hybrid'))}  ·  Neural ∩ Hybrid = ${inter(S('cb'), S('hybrid'))}`;
+}
+
+function simpleBar(id, labels, data, color, horizontal) {
+  mk(id, {type: 'bar', data: {labels, datasets: [{data, backgroundColor: color, borderRadius: 4}]},
+    options: {indexAxis: horizontal ? 'y' : 'x', responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}}});
+}
+async function loadDataset() {
+  const d = await api('/api/dataset');
+  $('#dsStats').innerHTML = [['Users', d.users], ['Movies', d.items], ['Ratings', d.ratings.toLocaleString()],
+    ['Sparsity', (d.sparsity * 100).toFixed(1) + '%']]
+    .map(([a, b]) => `<div class="stat"><b>${b}</b><span>${a}</span></div>`).join('');
+  simpleBar('cRatings', ['1★', '2★', '3★', '4★', '5★'], d.rating_counts, '#15803D');
+  simpleBar('cAct', d.activity.labels, d.activity.counts, '#3FB876');
+  simpleBar('cFeat', d.features.map(x => x.name), d.features.map(x => x.count), '#0B3D2E', true);
+}
+
+function grouped(id, labels, series, ylab, trunc) {
+  const all = Object.values(series).flat().filter(v => v !== null);
+  const y = {title: {display: true, text: ylab}};
+  if (trunc) y.min = Math.max(0, Math.floor((Math.min(...all) - 0.1) * 20) / 20);
+  mk(id, {type: 'bar',
+    data: {labels, datasets: Object.entries(series).map(([n, v]) => ({label: n, data: v, backgroundColor: COLORS[n], borderRadius: 4}))},
+    options: {responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {position: 'bottom'}, tooltip: {callbacks: {label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(4)}`}}},
+      scales: {y}}});
+}
+async function loadResults() {
+  let r;
+  try { r = await api('/api/results'); }
+  catch (e) { $('#resEmpty').style.display = 'block'; $('#resBody').style.display = 'none'; return; }
+  $('#resEmpty').style.display = 'none'; $('#resBody').style.display = 'block';
+  const ov = r.overall, names = Object.keys(ov), models = ['Item-CF', 'Neural Network', 'Hybrid'];
+  const better = (a, b) => a < b ? 'better' : 'not better';
+  const bestSingle = models.slice(0, 2).reduce((x, y) => ov[x].rmse < ov[y].rmse ? x : y);
+  const fewKey = Object.keys(r.activity_rmse)[0], fr = r.activity_rmse[fewKey];
+  const fewBest = models.slice(0, 2).reduce((x, y) => fr[x] < fr[y] ? x : y);
+  $('#resInfo').innerHTML =
+    `Tuned parameters &nbsp;→&nbsp; hidden = ${r.best_params.hidden}, τ = ${r.best_params.tau}<br>` +
+    `<b>Overall RMSE:</b> Hybrid ${ov.Hybrid.rmse.toFixed(4)} vs best single model (${bestSingle}) ${ov[bestSingle].rmse.toFixed(4)} — hybrid is ${better(ov.Hybrid.rmse, ov[bestSingle].rmse)}.<br>` +
+    `<b>Light users (${fewKey}):</b> Hybrid ${fr.Hybrid.toFixed(4)} vs ${fewBest} ${fr[fewBest].toFixed(4)} — hybrid is ${better(fr.Hybrid, fr[fewBest])}.`;
+  const cols = [['rmse', 'RMSE', false], ['mae', 'MAE', false], ['p10', 'Precision@10', true], ['r10', 'Recall@10', true]];
+  let h = '<table><thead><tr><th>Model</th>' + cols.map(c => `<th>${c[1]}</th>`).join('') + '</tr></thead><tbody>';
+  names.forEach(n => {
+    h += `<tr><td><span class="dotc" style="background:${COLORS[n]}"></span>${n}</td>`;
+    cols.forEach(([k, , hi]) => {
+      const vals = names.map(m => ov[m][k]).filter(x => x !== null), best = hi ? Math.max(...vals) : Math.min(...vals), v = ov[n][k];
+      h += v === null ? '<td>–</td>' : `<td class="${v === best ? 'best' : ''}">${v.toFixed(4)}</td>`;
+    });
+    h += '</tr>';
+  });
+  $('#resTable').innerHTML = h + '</tbody></table>';
+  const ser = {}; names.forEach(n => ser[n] = [ov[n].rmse, ov[n].mae]);
+  grouped('cErr', ['RMSE', 'MAE'], ser, 'Error (lower is better)', true);
+  const rk = {}; models.forEach(n => rk[n] = [ov[n].p10, ov[n].r10]);
+  grouped('cRank', ['Precision@10', 'Recall@10'], rk, 'Score (higher is better)', false);
+  const groups = Object.keys(r.activity_rmse), gl = groups.map(g => `${g} · ${r.activity_users[g]} users`);
+  const ar = {}, ap = {};
+  models.forEach(n => { ar[n] = groups.map(g => r.activity_rmse[g][n]); ap[n] = groups.map(g => r.activity_p10[g][n]); });
+  grouped('cActR', gl, ar, 'RMSE', true);
+  grouped('cActP', gl, ap, 'Precision@10', false);
+  const cs = r.cold_start;
+  mk('cCold', {type: 'line',
+    data: {labels: cs.n_keep, datasets: models.map(n => ({label: n, data: cs[n], borderColor: COLORS[n], backgroundColor: COLORS[n], tension: .25, borderWidth: 3, pointRadius: 4}))},
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {position: 'bottom'}},
+      scales: {x: {title: {display: true, text: 'Ratings kept per user in training'}}, y: {title: {display: true, text: 'RMSE'}}}}});
+  const tu = r.tuning;
+  mk('cTau', {type: 'line',
+    data: {datasets: [{label: 'Validation RMSE', data: tu.tau.map((t, i) => ({x: t, y: tu.tau_rmse[i]})),
+                       borderColor: '#0B3D2E', backgroundColor: '#0B3D2E', borderWidth: 3, pointRadius: 5}]},
+    options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}},
+      scales: {x: {type: 'logarithmic', title: {display: true, text: 'τ (log scale)'}}, y: {title: {display: true, text: 'Validation RMSE'}}}}});
+}
+
+(async function init() {
+  const meta = await api('/api/meta');
+  maxUid = meta.n_users;
+  $('#uid').max = maxUid;
+  $('#tau').value = meta.params.tau;
+  $('#tauv').textContent = meta.params.tau;
+  $('#metaFoot').textContent = `${meta.n_users.toLocaleString()} users · ${meta.n_items.toLocaleString()} movies · k=${meta.params.k}, hidden=${meta.params.hidden}, τ=${meta.params.tau}`;
+  loadRec();
+})();
+</script>
+</body>
+</html>
